@@ -1,0 +1,28 @@
+## ⚙️ Configuración y Despliegue (Para el Propietario)
+
+Para que la aplicación pueda registrar datos, se debe configurar un backend en Google Sheets siguiendo estos pasos:
+
+### 1. Preparar la Hoja de Google
+*   Crea una nueva **Hoja de Cálculo**.
+*   Define los encabezados en la primera fila: 
+    *   `A1: Fecha y Hora`
+    *   `B1: Nombre Piloto`
+    *   `C1: Matrícula`
+    *   `D1: Acción`
+
+### 2. Configurar el Google Apps Script
+*   En la hoja, ve a `Extensiones` > `Apps Script`.
+*   Pega el código del servidor (función `doPost` y `doGet`).
+*   Haz clic en `Implementar` > `Nueva implementación`.
+*   Configura el tipo como `Aplicación web`.
+*   **IMPORTANTE**: En "Quién tiene acceso", selecciona **"Cualquiera" (Anyone)**.
+*   Copia la URL generada (debe terminar en `/exec`).
+
+### 3. Vincular la App con la Base de Datos
+*   Abre el proyecto en Android Studio.
+*   Localiza el archivo `app/src/main/java/com/example/doralfleetcontrol/MainActivity.kt`.
+*   En la **línea 108**, sustituye el valor de la variable `URL_SCRIPT` por tu URL de Google Apps Script:
+    ```kotlin
+    private val URL_SCRIPT = "TU_URL_AQUÍ"
+    ```
+*   Compila y genera el nuevo APK.
