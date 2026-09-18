@@ -13,6 +13,51 @@ Para que la aplicación pueda registrar datos, se debe configurar un backend en 
 ### 2. Configurar el Google Apps Script
 *   En la hoja, ve a `Extensiones` > `Apps Script`.
 *   Pega el código del servidor (función `doPost` y `doGet`).
+
+=====================================================================
+
+/**
+ * Servidor para Control de Flotas DORAL
+ */
+
+function doPost(e) {
+  try {
+    // 1. Extraer los datos enviados por la App
+    var jsonString = e.postData.contents;
+    var datos = JSON.parse(jsonString);
+    
+    // 2. Conectar con la Hoja de Cálculo
+    // Usamos el ID para asegurar que siempre escriba en el sitio correcto
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var hoja = ss.getSheets()[0]; // La primera pestaña
+    
+    // 3. Escribir los datos (Columna A, B, C, D)
+    hoja.appendRow([
+      new Date(),          // A: Fecha y Hora del servidor
+      datos.email,         // B: Nombre del Piloto (enviado como email desde la app)
+      datos.matricula,     // C: Matrícula
+      datos.accion         // D: Acción (USA o DEJA)
+    ]);
+    
+    // 4. Responder éxito
+    return ContentService.createTextOutput("Registro completado con éxito")
+                         .setMimeType(ContentService.MimeType.TEXT);
+    
+  } catch(error) {
+    // En caso de fallo, devolvemos el error para verlo en la App
+    return ContentService.createTextOutput("Error en Script: " + error.message)
+                         .setMimeType(ContentService.MimeType.TEXT);
+  }
+}
+
+function doGet(e) {
+  return ContentService.createTextOutput("El servidor DORAL está ACTIVO. Usa la App para registrar datos.")
+                       .setMimeType(ContentService.MimeType.TEXT);
+}
+
+==============================================
+
+
 *   Haz clic en `Implementar` > `Nueva implementación`.
 *   Configura el tipo como `Aplicación web`.
 *   **IMPORTANTE**: En "Quién tiene acceso", selecciona **"Cualquiera" (Anyone)**.
