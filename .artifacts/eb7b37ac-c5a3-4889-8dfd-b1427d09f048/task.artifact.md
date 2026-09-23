@@ -1,7 +1,9 @@
-# Tareas de Implementación - Registro QR vs. Manual
+# Tareas de Implementación - Versión 1.3 RC
 
-- [ ] Crear estados para controlar los diálogos de selección y entrada manual en `MainScreen`.
-- [ ] Implementar el diálogo `ActionSelectionDialog` (QR vs Manual).
-- [ ] Implementar el diálogo `ManualInputDialog` con validación de 7 caracteres.
-- [ ] Integrar el nuevo flujo en los botones "Usa Vehículo" y "Deja Vehículo".
-- [ ] Verificar funcionamiento y generar previsualización.
+- [ ] Corregir bug de visibilidad de texto en `IdentificationScreen` (`Color.White`).
+- [ ] Definir `SERVER_URL_KEY` en DataStore y lógica de persistencia para la URL del servidor.
+- [ ] Añadir opción "Servidor" en el menú de 3 puntos (`AppTopBar`).
+- [ ] Implementar diálogo `ServerConfigDialog` para introducir/editar la URL de Google Apps Script.
+- [ ] Actualizar `enviarDatosASheets` para utilizar dinámicamente la URL guardada.
+- [ ] Actualizar `README.md` con las novedades de la v1.3 RC.
+- [ ] Generar previsualizaciones (Previews) para revisión de la UI.

@@ -1,34 +1,47 @@
-# Plan de Implementación: Registro QR vs. Manual
+# Plan de Implementación: Versión 1.3 RC (BugFix + Servidor Manual)
 
-Este plan detalla la adición de una opción para introducir la matrícula de forma manual en caso de que el vehículo no tenga código QR asignado.
+Este plan aborda la corrección del problema de visibilidad de texto en la identificación de usuario y la incorporación de la configuración manual de servidor para la **Versión 1.3 RC**.
 
 ## Cambios Propuestos
 
-### 1. Gestión de Diálogos y Estado
+### 1. Corrección de Bug: Visibilidad de Texto en Nombre de Piloto
 
 #### [MODIFY] [MainActivity.kt](file:///home/rtorgil/AndroidStudioProjects/DORALFLEETCONTROL/app/src/main/java/com/example/doralfleetcontrol/MainActivity.kt)
-- **Nuevos Estados**:
-    - `showActionDialog`: Controla el popup de selección inicial (QR vs Manual).
-    - `showManualDialog`: Controla el popup para escribir la matrícula.
-    - `pendingAction`: Almacena si el usuario pulsó "Usa" o "Deja" para saber qué enviar después.
-- **Diálogo de Selección (`ActionSelectionDialog`)**:
-    - Dos botones grandes con iconos: "Escanear QR" e "Introducir Manualmente".
-- **Diálogo de Entrada Manual (`ManualInputDialog`)**:
-    - Un campo de texto (`OutlinedTextField`) para escribir la matrícula.
-    - Botón "Registrar" que valide los 7 caracteres antes de enviar.
+- **Causa del Bug**: En algunos dispositivos con Modo Claro o configuraciones de tema personalizadas, el texto introducido en el `OutlinedTextField` tomaba el color oscuro por defecto, haciéndolo invisible sobre el fondo negro de la app.
+- **Solución**:
+    - Especificar explícitamente `textStyle = TextStyle(color = Color.White)` en el `OutlinedTextField` de `IdentificationScreen`.
+    - Ajustar los colores del campo (`OutlinedTextFieldDefaults.colors`) para asegurar un alto contraste (texto blanco, bordes verdes/blancos, etiqueta visible).
 
-### 2. Flujo de Usuario
+---
 
-1. El usuario pulsa **"Usa Vehículo"** o **"Deja Vehículo"**.
-2. Aparece un popup: **¿Cómo quieres registrar la matrícula?**
-3. Si elige **QR**: Se abre la cámara (comportamiento actual).
-4. Si elige **Manual**: Aparece un teclado y escribe la matrícula (ej: `1234ABC`).
-5. La app valida la longitud, guarda en memoria y envía a Google Sheets.
+### 2. Nueva Función: Configuración Manual de Servidor (v1.3 RC)
+
+#### [MODIFY] [MainActivity.kt](file:///home/rtorgil/AndroidStudioProjects/DORALFLEETCONTROL/app/src/main/java/com/example/doralfleetcontrol/MainActivity.kt)
+- **Persistencia**: Añadir `SERVER_URL_KEY` en `DataStore` para guardar la URL del script de cada propietario/sede.
+- **Menú de Opciones**: Añadir un nuevo elemento en el menú de los 3 puntos: **"Servidor"** (con icono de nube/red).
+- **Diálogo de Servidor (`ServerConfigDialog`)**:
+    - Muestra la URL actual almacenada.
+    - Campo para pegar/escribir una nueva URL de Google Apps Script (`https://script.google.com/...`).
+    - Botón "Guardar" que actualiza inmediatamente la configuración.
+- **Uso Dinámico**: Modificar `enviarDatosASheets` para que lea y utilice siempre la URL guardada en DataStore.
+
+---
+
+### 3. Plan de Actualizaciones OTA (Visión para v1.4 / v1.5)
+
+Para las futuras versiones, las actualizaciones automáticas desde GitHub funcionarán así:
+1. **Consulta en Inicio**: La app consultará el API de GitHub (`api.github.com/repos/grinderart/DORAL-FLEET-CONTROL/releases/latest`) en segundo plano.
+2. **Detección**: Comparará el `tag_name` (ej: `v1.3`) con la versión instalada.
+3. **Notificación**: Si hay una versión nueva, mostrará un aviso: *"Nueva versión 1.4 disponible"*.
+4. **Instalación**: Descargará el archivo `.apk` y lanzará el instalador nativo de Android.
+
+---
 
 ## Plan de Verificación
 
 ### Manual
-1. **Flujo QR**: Pulsar "Usa", elegir "QR", escanear. Verificar registro.
-2. **Flujo Manual**: Pulsar "Deja", elegir "Manual", escribir matrícula correcta. Verificar registro.
-3. **Validación**: Escribir menos o más de 7 caracteres en el modo manual. Verificar que el botón "Registrar" esté deshabilitado o muestre error.
-4. **Persistencia**: Verificar que la matrícula introducida manualmente también se queda guardada en el recuadro verde al salir y entrar.
+1. **Bug Text Visibility**: Probar la pantalla de identificación en dispositivos con modo claro/oscuro y comprobar que el nombre tecleado se ve en blanco brillante.
+2. **Configuración de Servidor**:
+    - Entrar en el menú 3 puntos > Servidor.
+    - Cambiar la URL por una de prueba.
+    - Confirmar que se guarda en DataStore y que los escaneos usan la nueva dirección.

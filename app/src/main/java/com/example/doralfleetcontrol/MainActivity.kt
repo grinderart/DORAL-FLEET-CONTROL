@@ -19,6 +19,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -31,6 +32,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Assignment
+import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
@@ -46,6 +48,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -68,11 +71,13 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.ImageShader
 import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.TileMode
-import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.imageResource
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -102,10 +107,11 @@ import org.json.JSONObject
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
 private val PILOT_NAME_KEY = stringPreferencesKey("pilot_name")
 private val LAST_PLATE_KEY = stringPreferencesKey("last_plate")
+private val SERVER_URL_KEY = stringPreferencesKey("server_url")
 
 class MainActivity : ComponentActivity() {
 
-    private val URL_SCRIPT = "https://script.google.com/macros/s/AKfycbxiw3bZHGE502h7hfPj85XBlOQGJpSMlTd9l0uKjEqqo0SpxKnmrvKMWEkGVHlkOGfl7w/exec"
+    private val DEFAULT_URL_SCRIPT = "https://script.google.com/macros/s/AKfycbxiw3bZHGE502h7hfPj85XBlOQGJpSMlTd9l0uKjEqqo0SpxKnmrvKMWEkGVHlkOGfl7w/exec"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -114,12 +120,17 @@ class MainActivity : ComponentActivity() {
             DORALFLEETCONTROLTheme {
                 val settings by remember {
                     dataStore.data.map { preferences ->
-                        Pair(preferences[PILOT_NAME_KEY], preferences[LAST_PLATE_KEY])
+                        Triple(
+                            preferences[PILOT_NAME_KEY] ?: "",
+                            preferences[LAST_PLATE_KEY] ?: "Ninguna",
+                            preferences[SERVER_URL_KEY] ?: DEFAULT_URL_SCRIPT
+                        )
                     }
-                }.collectAsState(initial = Pair("", "Ninguna"))
+                }.collectAsState(initial = Triple("", "Ninguna", DEFAULT_URL_SCRIPT))
 
                 val pilotName = settings.first
                 val lastPlate = settings.second
+                val serverUrl = settings.third.ifBlank { DEFAULT_URL_SCRIPT }
 
                 // Lógica de permisos de notificación para Android 13+
                 val context = LocalContext.current
@@ -127,7 +138,7 @@ class MainActivity : ComponentActivity() {
                     val launcher = rememberLauncherForActivityResult(
                         contract = ActivityResultContracts.RequestPermission(),
                         onResult = { isGranted ->
-                            if (isGranted && !pilotName.isNullOrBlank()) {
+                            if (isGranted && pilotName.isNotBlank()) {
                                 startFleetService(context)
                             }
                         }
@@ -141,7 +152,7 @@ class MainActivity : ComponentActivity() {
 
                 // Iniciar servicio si ya hay nombre y permisos (o versión anterior)
                 LaunchedEffect(pilotName) {
-                    if (!pilotName.isNullOrBlank()) {
+                    if (pilotName.isNotBlank()) {
                         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || 
                             context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) {
                             startFleetService(context)
@@ -150,14 +161,25 @@ class MainActivity : ComponentActivity() {
                 }
 
                 TiledBackground {
-                    if (pilotName.isNullOrBlank()) {
-                        IdentificationScreen { name ->
-                            lifecycleScope.launch {
-                                saveName(name)
+                    if (pilotName.isBlank()) {
+                        IdentificationScreen(
+                            currentServerUrl = serverUrl,
+                            onSaveServerUrl = { newUrl ->
+                                lifecycleScope.launch { saveServerUrl(newUrl) }
+                            },
+                            onStart = { name ->
+                                lifecycleScope.launch { saveName(name) }
                             }
-                        }
+                        )
                     } else {
-                        MainScreen(pilotName, lastPlate ?: "Ninguna")
+                        MainScreen(
+                            pilotName = pilotName,
+                            initialPlate = lastPlate,
+                            currentServerUrl = serverUrl,
+                            onSaveServerUrl = { newUrl ->
+                                lifecycleScope.launch { saveServerUrl(newUrl) }
+                            }
+                        )
                     }
                 }
             }
@@ -176,6 +198,12 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private suspend fun saveServerUrl(url: String) {
+        dataStore.edit { preferences ->
+            preferences[SERVER_URL_KEY] = url
+        }
+    }
+
     @Composable
     fun TiledBackground(content: @Composable () -> Unit) {
         val image = ImageBitmap.imageResource(id = R.drawable.caddy)
@@ -189,7 +217,6 @@ class MainActivity : ComponentActivity() {
                             shader = ImageShader(image, TileMode.Repeated, TileMode.Repeated)
                             alpha = 0.1f
                         }
-                        // Dibujamos un rectángulo mucho más grande para cubrir los huecos de la rotación
                         val extra = size.maxDimension
                         drawIntoCanvas { canvas ->
                             canvas.drawRect(
@@ -223,10 +250,15 @@ class MainActivity : ComponentActivity() {
 
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
-    fun AppTopBar(onExit: () -> Unit) {
+    fun AppTopBar(
+        currentServerUrl: String,
+        onSaveServerUrl: (String) -> Unit,
+        onExit: () -> Unit
+    ) {
         var showMenu by remember { mutableStateOf(false) }
         var showCredits by remember { mutableStateOf(false) }
         var showLicence by remember { mutableStateOf(false) }
+        var showServerDialog by remember { mutableStateOf(false) }
 
         TopAppBar(
             title = { },
@@ -242,6 +274,14 @@ class MainActivity : ComponentActivity() {
                     expanded = showMenu,
                     onDismissRequest = { showMenu = false }
                 ) {
+                    DropdownMenuItem(
+                        text = { Text("Servidor") },
+                        onClick = {
+                            showMenu = false
+                            showServerDialog = true
+                        },
+                        leadingIcon = { Icon(Icons.Default.Dns, contentDescription = null) }
+                    )
                     DropdownMenuItem(
                         text = { Text("Créditos") },
                         onClick = {
@@ -273,6 +313,48 @@ class MainActivity : ComponentActivity() {
             )
         )
 
+        // DIÁLOGO CONFIGURACIÓN SERVIDOR (v1.3 RC)
+        if (showServerDialog) {
+            var urlInput by remember { mutableStateOf(currentServerUrl) }
+            AlertDialog(
+                onDismissRequest = { showServerDialog = false },
+                title = { Text("Configurar Servidor") },
+                text = {
+                    Column {
+                        Text("URL del Google Apps Script para esta sede/departamento:", fontSize = 14.sp)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = urlInput,
+                            onValueChange = { urlInput = it },
+                            label = { Text("URL del Servidor") },
+                            placeholder = { Text("https://script.google.com/...") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = false,
+                            maxLines = 3,
+                            textStyle = TextStyle(color = Color.Black, fontSize = 14.sp)
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            if (urlInput.isNotBlank()) {
+                                onSaveServerUrl(urlInput.trim())
+                                showServerDialog = false
+                            }
+                        }
+                    ) {
+                        Text("Guardar")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showServerDialog = false }) {
+                        Text("Cancelar")
+                    }
+                }
+            )
+        }
+
         if (showCredits) {
             AlertDialog(
                 onDismissRequest = { showCredits = false },
@@ -281,7 +363,7 @@ class MainActivity : ComponentActivity() {
                     Column {
                         Text("DORAL Fleet Control", fontWeight = FontWeight.Bold)
                         Spacer(modifier = Modifier.height(4.dp))
-                        Text("Versión 1.2 RC", fontSize = 12.sp, color = Color.Gray)
+                        Text("Versión 1.3 RC", fontSize = 12.sp, color = Color.Gray)
                         Spacer(modifier = Modifier.height(8.dp))
                         Text("Desarrollado para la gestión de flota de DORAL.")
                         Spacer(modifier = Modifier.height(8.dp))
@@ -348,7 +430,7 @@ class MainActivity : ComponentActivity() {
                         Text(
                             "El acceso y uso de esta aplicación por parte del personal de DORAL PARTS S.L. implica la aceptación incondicional de estos términos. El autor, Rayco Torres Gil, se reserva el derecho de revocar esta licencia gratuita de uso en cualquier momento si se detecta un incumplimiento de estas condiciones.",
                             fontSize = 13.sp,
-                            fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+                            fontStyle = FontStyle.Italic
                         )
                     }
                 },
@@ -362,7 +444,11 @@ class MainActivity : ComponentActivity() {
     }
 
     @Composable
-    fun IdentificationScreen(onStart: (String) -> Unit) {
+    fun IdentificationScreen(
+        currentServerUrl: String,
+        onSaveServerUrl: (String) -> Unit,
+        onStart: (String) -> Unit
+    ) {
         var nameInput by remember { mutableStateOf("") }
         val context = LocalContext.current
 
@@ -370,10 +456,14 @@ class MainActivity : ComponentActivity() {
             modifier = Modifier.fillMaxSize(),
             containerColor = Color.Transparent,
             topBar = {
-                AppTopBar(onExit = {
-                    stopFleetService(context)
-                    finishAndRemoveTask()
-                })
+                AppTopBar(
+                    currentServerUrl = currentServerUrl,
+                    onSaveServerUrl = onSaveServerUrl,
+                    onExit = {
+                        stopFleetService(context)
+                        finishAndRemoveTask()
+                    }
+                )
             }
         ) { innerPadding ->
             Column(
@@ -409,13 +499,27 @@ class MainActivity : ComponentActivity() {
 
                 Spacer(modifier = Modifier.height(32.dp))
 
+                // CORRECCIÓN BUG VISIBILIDAD DE TEXTO
                 OutlinedTextField(
                     value = nameInput,
                     onValueChange = { nameInput = it },
                     label = { Text("Nombre del Piloto") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    shape = RoundedCornerShape(12.dp)
+                    shape = RoundedCornerShape(12.dp),
+                    textStyle = TextStyle(
+                        color = Color.White,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Medium
+                    ),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White,
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = Color.LightGray,
+                        focusedLabelColor = MaterialTheme.colorScheme.primary,
+                        unfocusedLabelColor = Color.LightGray
+                    )
                 )
 
                 Spacer(modifier = Modifier.height(32.dp))
@@ -435,15 +539,19 @@ class MainActivity : ComponentActivity() {
     }
 
     @Composable
-    fun MainScreen(pilotName: String, initialPlate: String) {
+    fun MainScreen(
+        pilotName: String,
+        initialPlate: String,
+        currentServerUrl: String,
+        onSaveServerUrl: (String) -> Unit
+    ) {
         var scannedPlate by remember { mutableStateOf(initialPlate) }
         val context = LocalContext.current
-        val scope = rememberCoroutineScope()
 
-        // Estados para los nuevos diálogos
+        // Estados para los diálogos
         var showActionDialog by remember { mutableStateOf(false) }
         var showManualDialog by remember { mutableStateOf(false) }
-        var pendingAction by remember { mutableStateOf("") } // "USA VEHICULO" o "DEJA VEHICULO"
+        var pendingAction by remember { mutableStateOf("") }
 
         // Manejo del botón atrás: minimiza la app conservando la matrícula
         BackHandler {
@@ -454,10 +562,14 @@ class MainActivity : ComponentActivity() {
             modifier = Modifier.fillMaxSize(),
             containerColor = Color.Transparent,
             topBar = {
-                AppTopBar(onExit = {
-                    stopFleetService(context)
-                    finishAndRemoveTask()
-                })
+                AppTopBar(
+                    currentServerUrl = currentServerUrl,
+                    onSaveServerUrl = onSaveServerUrl,
+                    onExit = {
+                        stopFleetService(context)
+                        finishAndRemoveTask()
+                    }
+                )
             }
         ) { innerPadding ->
             Column(
@@ -563,7 +675,6 @@ class MainActivity : ComponentActivity() {
                     Button(
                         onClick = {
                             showActionDialog = false
-                            // Lógica de Escaneo QR
                             val options = GmsBarcodeScannerOptions.Builder()
                                 .setBarcodeFormats(Barcode.FORMAT_QR_CODE)
                                 .build()
@@ -575,7 +686,7 @@ class MainActivity : ComponentActivity() {
                                         if (rawValue.length == 7) {
                                             scannedPlate = rawValue
                                             lifecycleScope.launch { saveLastPlate(rawValue) }
-                                            enviarDatosASheets(rawValue, pilotName, pendingAction)
+                                            enviarDatosASheets(rawValue, pilotName, pendingAction, currentServerUrl)
                                         } else {
                                             Toast.makeText(this@MainActivity, "Operación Incorrecta", Toast.LENGTH_LONG).show()
                                         }
@@ -626,7 +737,8 @@ class MainActivity : ComponentActivity() {
                             label = { Text("Matrícula") },
                             placeholder = { Text("Ej: 1234ABC") },
                             modifier = Modifier.fillMaxWidth(),
-                            singleLine = true
+                            singleLine = true,
+                            textStyle = TextStyle(color = Color.Black, fontSize = 16.sp)
                         )
                     }
                 },
@@ -636,7 +748,7 @@ class MainActivity : ComponentActivity() {
                             if (manualPlate.length == 7) {
                                 scannedPlate = manualPlate
                                 lifecycleScope.launch { saveLastPlate(manualPlate) }
-                                enviarDatosASheets(manualPlate, pilotName, pendingAction)
+                                enviarDatosASheets(manualPlate, pilotName, pendingAction, currentServerUrl)
                                 showManualDialog = false
                             }
                         },
@@ -654,8 +766,8 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun enviarDatosASheets(matricula: String, nombre: String, accion: String) {
-        if (URL_SCRIPT.isBlank() || URL_SCRIPT.contains("TU_URL")) {
+    private fun enviarDatosASheets(matricula: String, nombre: String, accion: String, targetUrl: String) {
+        if (targetUrl.isBlank() || targetUrl.contains("TU_URL")) {
             Toast.makeText(this, "Escaneo OK: $matricula (URL no configurada)", Toast.LENGTH_LONG).show()
             return
         }
@@ -664,7 +776,6 @@ class MainActivity : ComponentActivity() {
             try {
                 val client = OkHttpClient()
                 val json = JSONObject()
-                // Mapeo exacto según espera tu Script de Google Apps Script
                 json.put("email", nombre)       // El script usa datos.email para el nombre
                 json.put("matricula", matricula) // El script usa datos.matricula
                 json.put("accion", accion)      // El script usa datos.accion
@@ -673,7 +784,7 @@ class MainActivity : ComponentActivity() {
                 val body = json.toString().toRequestBody(mediaType)
 
                 val request = Request.Builder()
-                    .url(URL_SCRIPT)
+                    .url(targetUrl)
                     .post(body)
                     .build()
 
@@ -697,69 +808,39 @@ class MainActivity : ComponentActivity() {
 
     @Preview(showBackground = true)
     @Composable
-    fun LicenceDialogPreview() {
+    fun ServerConfigPreview() {
         DORALFLEETCONTROLTheme {
-            AlertDialog(
-                onDismissRequest = { },
-                title = { Text("Licencia de Uso") },
-                text = {
-                    val scroll = rememberScrollState()
-                    Column(
-                        modifier = Modifier
-                            .height(400.dp)
-                            .verticalScroll(scroll)
-                    ) {
-                        Text(
-                            text = "© 2026 Rayco Torres Gil. Todos los derechos reservados.",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        
-                        Text("1. Propiedad Intelectual y Autoría", fontWeight = FontWeight.Bold)
-                        Text(
-                            "El código fuente, el diseño de la interfaz, la estructura lógica y la idea original de esta aplicación son propiedad intelectual exclusiva de su creador, Rayco Torres Gil. Esta aplicación ha sido desarrollada de manera independiente y por iniciativa propia, y no constituye una obra por encargo corporativo.",
-                            fontSize = 13.sp
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        Text("2. Ámbito de Uso Permitido", fontWeight = FontWeight.Bold)
-                        Text(
-                            "El autor concede a DORAL PARTS S.L. y a su personal operativo (repartidores y gestores de flota) una licencia de uso temporal, gratuita, intransferible y no exclusiva. Este uso está estrictamente limitado a la gestión interna de flotas y al registro de entrada y salida de vehículos dentro de la actividad de la empresa.",
-                            fontSize = 13.sp
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        Text("3. Restricciones Estrictas", fontWeight = FontWeight.Bold)
-                        Text(
-                            "Para proteger la propiedad intelectual del autor, queda terminantemente prohibido:\n\n" +
-                            "• Plagiar, copiar o reproducir total o parcialmente el diseño, las funciones o el código de esta aplicación.\n" +
-                            "• Realizar ingeniería inversa, descompilar o intentar extraer el código fuente de la misma.\n" +
-                            "• Distribuir, vender, comercializar o registrar esta aplicación (así como cualquier obra derivada basada en esta idea o estructura) a nombre de DORAL PARTS S.L. o de cualquier tercero.",
-                            fontSize = 13.sp
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        Text("4. Uso de Activos Corporativos", fontWeight = FontWeight.Bold)
-                        Text(
-                            "Los logotipos, marcas comerciales e imágenes corporativas pertenecientes a DORAL PARTS S.L. (incluyendo, pero no limitándose a, iconos de vehículos y enlaces a redes sociales) integrados en esta aplicación son propiedad exclusiva de la empresa. Su inclusión tiene una finalidad puramente estética y de usabilidad para el entorno interno. El uso de estos elementos corporativos no otorga al autor ningún derecho sobre los mismos; de igual manera, la presencia de estos activos en la interfaz no transfiere a la empresa la titularidad, ni total ni parcial, sobre el software, su código o su propiedad intelectual, que siguen perteneciendo exclusivamente a Rayco Torres Gil.",
-                            fontSize = 13.sp
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        Text(
-                            "El acceso y uso de esta aplicación por parte del personal de DORAL PARTS S.L. implica la aceptación incondicional de estos términos. El autor, Rayco Torres Gil, se reserva el derecho de revocar esta licencia gratuita de uso en cualquier momento si se detecta un incumplimiento de estas condiciones.",
-                            fontSize = 13.sp,
-                            fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
-                        )
+            TiledBackground {
+                AlertDialog(
+                    onDismissRequest = { },
+                    title = { Text("Configurar Servidor") },
+                    text = {
+                        Column {
+                            Text("URL del Google Apps Script para esta sede/departamento:", fontSize = 14.sp)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            OutlinedTextField(
+                                value = "https://script.google.com/macros/s/.../exec",
+                                onValueChange = { },
+                                label = { Text("URL del Servidor") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = false,
+                                maxLines = 3,
+                                textStyle = TextStyle(color = Color.Black, fontSize = 14.sp)
+                            )
+                        }
+                    },
+                    confirmButton = {
+                        Button(onClick = { }) {
+                            Text("Guardar")
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { }) {
+                            Text("Cancelar")
+                        }
                     }
-                },
-                confirmButton = {
-                    TextButton(onClick = { }) {
-                        Text("He leído y acepto")
-                    }
-                }
-            )
+                )
+            }
         }
     }
 
@@ -768,7 +849,11 @@ class MainActivity : ComponentActivity() {
     fun IdentificationPreview() {
         DORALFLEETCONTROLTheme {
             TiledBackground {
-                IdentificationScreen {}
+                IdentificationScreen(
+                    currentServerUrl = "https://script.google.com/...",
+                    onSaveServerUrl = {},
+                    onStart = {}
+                )
             }
         }
     }
@@ -778,7 +863,12 @@ class MainActivity : ComponentActivity() {
     fun MainScreenPreview() {
         DORALFLEETCONTROLTheme {
             TiledBackground {
-                MainScreen("Juan Pérez", "1234ABC")
+                MainScreen(
+                    pilotName = "Juan Pérez",
+                    initialPlate = "1234ABC",
+                    currentServerUrl = "https://script.google.com/...",
+                    onSaveServerUrl = {}
+                )
             }
         }
     }
