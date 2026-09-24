@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
@@ -47,6 +48,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
@@ -112,6 +114,8 @@ private val SERVER_URL_KEY = stringPreferencesKey("server_url")
 class MainActivity : ComponentActivity() {
 
     private val DEFAULT_URL_SCRIPT = "https://script.google.com/macros/s/AKfycbxiw3bZHGE502h7hfPj85XBlOQGJpSMlTd9l0uKjEqqo0SpxKnmrvKMWEkGVHlkOGfl7w/exec"
+    private val CURRENT_VERSION_TAG = "v2.0-ALPHA"
+    private val GITHUB_RELEASE_API_URL = "https://api.github.com/repos/grinderart/DORAL-FLEET-CONTROL/releases/latest"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -132,14 +136,58 @@ class MainActivity : ComponentActivity() {
                 val lastPlate = settings.second
                 val serverUrl = settings.third.ifBlank { DEFAULT_URL_SCRIPT }
 
-                // Lógica de permisos de notificación para Android 13+
                 val context = LocalContext.current
+                var otaUpdateInfo by remember { mutableStateOf<Pair<String, String>?>(null) }
+
+                // Comprobación asíncrona de actualización OTA desde GitHub
+                LaunchedEffect(Unit) {
+                    checkOtaUpdate(context) { tagName, downloadUrl ->
+                        otaUpdateInfo = Pair(tagName, downloadUrl)
+                    }
+                }
+
+                // Diálogo emergente de actualización OTA si hay una nueva versión
+                if (otaUpdateInfo != null) {
+                    val (newVersion, downloadUrl) = otaUpdateInfo!!
+                    AlertDialog(
+                        onDismissRequest = { otaUpdateInfo = null },
+                        title = { Text("Actualización Disponible") },
+                        text = {
+                            Column {
+                                Text("Se ha detectado una nueva versión en GitHub:", fontSize = 14.sp)
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(newVersion, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, fontSize = 18.sp)
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text("¿Deseas descargar e instalar la actualización oficial?", fontSize = 13.sp)
+                            }
+                        },
+                        confirmButton = {
+                            Button(
+                                onClick = {
+                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(downloadUrl))
+                                    context.startActivity(intent)
+                                    otaUpdateInfo = null
+                                }
+                            ) {
+                                Text("Descargar e Instalar")
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { otaUpdateInfo = null }) {
+                                Text("Ahora no")
+                            }
+                        }
+                    )
+                }
+
+                // Lógica de permisos de notificación para Android 13+
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                     val launcher = rememberLauncherForActivityResult(
                         contract = ActivityResultContracts.RequestPermission(),
                         onResult = { isGranted ->
                             if (isGranted && pilotName.isNotBlank()) {
                                 startFleetService(context)
+                                ReminderScheduler.scheduleDailyReminders(context)
                             }
                         }
                     )
@@ -150,13 +198,14 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                // Iniciar servicio si ya hay nombre y permisos (o versión anterior)
+                // Iniciar servicio y programar recordatorios diarios si ya hay nombre
                 LaunchedEffect(pilotName) {
                     if (pilotName.isNotBlank()) {
                         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || 
                             context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) {
                             startFleetService(context)
                         }
+                        ReminderScheduler.scheduleDailyReminders(context)
                     }
                 }
 
@@ -313,16 +362,57 @@ class MainActivity : ComponentActivity() {
             )
         )
 
-        // DIÁLOGO CONFIGURACIÓN SERVIDOR (v1.3 RC)
+        // DIÁLOGO CONFIGURACIÓN SERVIDOR (v2.0-ALPHA con Escáner QR)
         if (showServerDialog) {
             var urlInput by remember { mutableStateOf(currentServerUrl) }
+            val context = LocalContext.current
+
             AlertDialog(
                 onDismissRequest = { showServerDialog = false },
                 title = { Text("Configurar Servidor") },
                 text = {
                     Column {
-                        Text("URL del Google Apps Script para esta sede/departamento:", fontSize = 14.sp)
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            "Establezca la URL del Google Apps Script para esta sede:",
+                            fontSize = 14.sp
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        // Botón de captura rápida por QR
+                        OutlinedButton(
+                            onClick = {
+                                val options = GmsBarcodeScannerOptions.Builder()
+                                    .setBarcodeFormats(Barcode.FORMAT_QR_CODE)
+                                    .build()
+                                val scanner = GmsBarcodeScanning.getClient(context, options)
+                                scanner.startScan()
+                                    .addOnSuccessListener { barcode ->
+                                        val rawValue = barcode.rawValue
+                                        if (!rawValue.isNullOrBlank() && rawValue.startsWith("http")) {
+                                            urlInput = rawValue
+                                            onSaveServerUrl(rawValue.trim())
+                                            Toast.makeText(context, "Servidor configurado por QR", Toast.LENGTH_SHORT).show()
+                                            showServerDialog = false
+                                        } else {
+                                            Toast.makeText(context, "QR no contiene una URL válida", Toast.LENGTH_LONG).show()
+                                        }
+                                    }
+                                    .addOnFailureListener { e ->
+                                        Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
+                                    }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Default.QrCodeScanner, contentDescription = null)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Escanear QR de Servidor")
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        Text("O pegue la dirección manualmente:", fontSize = 12.sp, color = Color.Gray)
+                        Spacer(modifier = Modifier.height(4.dp))
+
                         OutlinedTextField(
                             value = urlInput,
                             onValueChange = { urlInput = it },
@@ -331,7 +421,7 @@ class MainActivity : ComponentActivity() {
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = false,
                             maxLines = 3,
-                            textStyle = TextStyle(color = Color.Black, fontSize = 14.sp)
+                            textStyle = TextStyle(color = Color.Black, fontSize = 13.sp)
                         )
                     }
                 },
@@ -363,7 +453,7 @@ class MainActivity : ComponentActivity() {
                     Column {
                         Text("DORAL Fleet Control", fontWeight = FontWeight.Bold)
                         Spacer(modifier = Modifier.height(4.dp))
-                        Text("Versión 1.3 RC", fontSize = 12.sp, color = Color.Gray)
+                        Text("Versión 2.0-ALPHA", fontSize = 12.sp, color = Color.Gray)
                         Spacer(modifier = Modifier.height(8.dp))
                         Text("Desarrollado para la gestión de flota de DORAL.")
                         Spacer(modifier = Modifier.height(8.dp))
@@ -398,24 +488,26 @@ class MainActivity : ComponentActivity() {
                         
                         Text("1. Propiedad Intelectual y Autoría", fontWeight = FontWeight.Bold)
                         Text(
-                            "El código fuente, el diseño de la interfaz, la estructura lógica y la idea original de esta aplicación son propiedad intelectual exclusiva de su creador, Rayco Torres Gil. Esta aplicación ha sido desarrollada de manera independiente y por iniciativa propia, y no constituye una obra por encargo corporativo.",
+                            "El código fuente, el diseño de la interfaz, la arquitectura técnica, la estructura lógica y la idea original de esta aplicación son propiedad intelectual exclusiva e inviolable de su creador, Rayco Torres Gil. Esta aplicación ha sido desarrollada de manera independiente y por iniciativa propia, no constituyendo una obra por encargo corporativo ni implicando cesión alguna de derechos patrimoniales sobre el software.",
                             fontSize = 13.sp
                         )
                         Spacer(modifier = Modifier.height(12.dp))
 
                         Text("2. Ámbito de Uso Permitido", fontWeight = FontWeight.Bold)
                         Text(
-                            "El autor concede a DORAL PARTS S.L. y a su personal operativo (repartidores y gestores de flota) una licencia de uso temporal, gratuita, intransferible y no exclusiva. Este uso está estrictamente limitado a la gestión interna de flotas y al registro de entrada y salida de vehículos dentro de la actividad de la empresa.",
+                            "El autor concede a DORAL PARTS S.L. y a su personal operativo (repartidores y gestores de flota) una licencia de uso temporal, gratuita, intransferible y no exclusiva. Este uso está estrictamente limitado a la gestión interna de flotas y al registro de entrada y salida de vehículos dentro de la actividad ordinaria de la empresa, bajo la modalidad «tal cual» (as-is) de la versión actual.\n\n" +
+                            "La gratuidad de esta licencia se limita exclusivamente a la ejecución operativa del programa en su estado presente. Queda expresamente excluida cualquier obligación de soporte técnico, mantenimiento evolutivo, corrección de incidencias o desarrollo de nuevas funcionalidades. Toda solicitud de modificación, mejora o implementación de cambios requerida por DORAL PARTS S.L. estará condicionada a presupuesto previo y sujeta a la tarifa profesional de programador del autor. La contratación o pago de dichos servicios no conferirá en ningún caso titularidad sobre el software ni alterará los derechos exclusivos del autor.",
                             fontSize = 13.sp
                         )
                         Spacer(modifier = Modifier.height(12.dp))
 
                         Text("3. Restricciones Estrictas", fontWeight = FontWeight.Bold)
                         Text(
-                            "Para proteger la propiedad intelectual del autor, queda terminantemente prohibido:\n\n" +
+                            "Para proteger la propiedad intelectual del autor y garantizar la inviolabilidad del software, queda terminantemente prohibido:\n\n" +
                             "• Plagiar, copiar o reproducir total o parcialmente el diseño, las funciones o el código de esta aplicación.\n" +
                             "• Realizar ingeniería inversa, descompilar o intentar extraer el código fuente de la misma.\n" +
-                            "• Distribuir, vender, comercializar o registrar esta aplicación (así como cualquier obra derivada basada en esta idea o estructura) a nombre de DORAL PARTS S.L. o de cualquier tercero.",
+                            "• Distribuir, vender, sublicenciar, comercializar o registrar esta aplicación (así como cualquier obra derivada basada en esta idea, estructura o código) a nombre de DORAL PARTS S.L. o de cualquier tercero.\n" +
+                            "• Efectuar modificaciones o alteraciones en el código sin la autorización expresa, previa y por escrito del autor.",
                             fontSize = 13.sp
                         )
                         Spacer(modifier = Modifier.height(12.dp))
@@ -806,6 +898,48 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun checkOtaUpdate(
+        context: Context,
+        onUpdateFound: (versionTag: String, downloadUrl: String) -> Unit
+    ) {
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val client = OkHttpClient()
+                val request = Request.Builder()
+                    .url(GITHUB_RELEASE_API_URL)
+                    .header("User-Agent", "DORAL-Fleet-Control-App")
+                    .build()
+
+                val response = client.newCall(request).execute()
+                val responseBody = response.body?.string() ?: return@launch
+                if (!response.isSuccessful) return@launch
+
+                val json = JSONObject(responseBody)
+                val tagName = json.optString("tag_name", "")
+
+                if (tagName.isNotBlank() && tagName != CURRENT_VERSION_TAG) {
+                    var downloadUrl = json.optString("html_url", "https://github.com/grinderart/DORAL-FLEET-CONTROL/releases")
+                    val assets = json.optJSONArray("assets")
+                    if (assets != null && assets.length() > 0) {
+                        for (i in 0 until assets.length()) {
+                            val asset = assets.getJSONObject(i)
+                            if (asset.optString("name", "").endsWith(".apk")) {
+                                downloadUrl = asset.optString("browser_download_url", downloadUrl)
+                                break
+                            }
+                        }
+                    }
+
+                    withContext(Dispatchers.Main) {
+                        onUpdateFound(tagName, downloadUrl)
+                    }
+                }
+            } catch (e: Exception) {
+                // Silencioso si no hay conexión o falla el API
+            }
+        }
+    }
+
     @Preview(showBackground = true)
     @Composable
     fun ServerConfigPreview() {
@@ -816,8 +950,26 @@ class MainActivity : ComponentActivity() {
                     title = { Text("Configurar Servidor") },
                     text = {
                         Column {
-                            Text("URL del Google Apps Script para esta sede/departamento:", fontSize = 14.sp)
-                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                "Establezca la URL del Google Apps Script para esta sede:",
+                                fontSize = 14.sp
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            OutlinedButton(
+                                onClick = { },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(Icons.Default.QrCodeScanner, contentDescription = null)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Escanear QR de Servidor")
+                            }
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            Text("O pegue la dirección manualmente:", fontSize = 12.sp, color = Color.Gray)
+                            Spacer(modifier = Modifier.height(4.dp))
+
                             OutlinedTextField(
                                 value = "https://script.google.com/macros/s/.../exec",
                                 onValueChange = { },
@@ -825,7 +977,7 @@ class MainActivity : ComponentActivity() {
                                 modifier = Modifier.fillMaxWidth(),
                                 singleLine = false,
                                 maxLines = 3,
-                                textStyle = TextStyle(color = Color.Black, fontSize = 14.sp)
+                                textStyle = TextStyle(color = Color.Black, fontSize = 13.sp)
                             )
                         }
                     },

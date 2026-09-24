@@ -1,9 +1,7 @@
-# Tareas de Implementación - Versión 1.3 RC
+# Tareas de Implementación - OTA + Lanzamiento v2.0-ALPHA
 
-- [ ] Corregir bug de visibilidad de texto en `IdentificationScreen` (`Color.White`).
-- [ ] Definir `SERVER_URL_KEY` en DataStore y lógica de persistencia para la URL del servidor.
-- [ ] Añadir opción "Servidor" en el menú de 3 puntos (`AppTopBar`).
-- [ ] Implementar diálogo `ServerConfigDialog` para introducir/editar la URL de Google Apps Script.
-- [ ] Actualizar `enviarDatosASheets` para utilizar dinámicamente la URL guardada.
-- [ ] Actualizar `README.md` con las novedades de la v1.3 RC.
-- [ ] Generar previsualizaciones (Previews) para revisión de la UI.
+- [ ] Sincronizar texto legal en `MainActivity.kt` con la versión del `README.md`.
+- [ ] Implementar función `checkOtaUpdate` consultando la API de GitHub Releases.
+- [ ] Mostrar `UpdateDialog` en `MainScreen` cuando haya un release nuevo.
+- [ ] Compilar el APK v2.0-ALPHA.
+- [ ] Realizar commit, crear tag `v2.0-ALPHA` y hacer push a GitHub.

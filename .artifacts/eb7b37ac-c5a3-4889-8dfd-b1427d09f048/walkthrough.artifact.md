@@ -1,37 +1,33 @@
-# Walkthrough - Publicación en GitHub y Distribución Final
+# Walkthrough - Recordatorios Diarios de Fichaje (07:00 AM y 15:50 PM)
 
-Se ha preparado el proyecto para su alojamiento oficial en GitHub, incluyendo documentación profesional y blindaje legal.
+Se han implementado las notificaciones programadas automáticas para recordar al personal operativo el fichaje de inicio y fin de jornada.
 
-## Acciones Realizadas
+## Funcionalidades Implementadas
 
-### 1. Documentación Profesional
-- **README.md**: Se ha creado un archivo de presentación completo que destaca las funcionalidades de la app, las tecnologías utilizadas y los términos legales de autoría y propiedad intelectual definidos anteriormente.
+### 1. Horarios Programados
+- **07:00 AM (Inicio de Jornada)**:
+  - **Título**: DORAL Fleet Control
+  - **Mensaje**: *"¿Has registrado tu vehículo hoy?"*
+- **15:50 PM (Fin de Jornada)**:
+  - **Título**: DORAL Fleet Control
+  - **Mensaje**: *"¿Has dejado el vehículo en la sede?"*
 
-### 2. Configuración de GitHub
-- Se ha actualizado el origen del repositorio remoto a: `https://github.com/grinderart/DORAL-FLEET-CONTROL.git`.
-- Se ha preparado el código para la subida final incluyendo las etiquetas de versión (`v1.2-RC`).
+### 2. Arquitectura de Alertas (AlarmManager + BroadcastReceiver)
+- **`ReminderScheduler.kt`**:
+  - Calcula el tiempo hasta la siguiente ocurrencia de las 07:00 AM o las 15:50 PM.
+  - Programa alarmas exactas en el sistema utilizando `AlarmManager.RTC_WAKEUP` y `setAndAllowWhileIdle`.
+- **`ReminderReceiver.kt`**:
+  - `BroadcastReceiver` que captura el evento a la hora programada.
+  - Emite la notificación relevante a través de un canal exclusivo de alta prioridad (`DoralRemindersChannel`).
+  - **Reprogramación Automática**: Al dispararse una alarma, programa inmediatamente la del día siguiente.
+- **Acceso Directo**: Al tocar la notificación, la app se abre automáticamente en la pantalla de fichaje.
 
-### 3. Generación del Instalable (APK)
-- Se ha ejecutado una compilación limpia del proyecto. El archivo resultante está listo para ser distribuido.
-- **Ubicación del archivo**: `app/build/outputs/apk/debug/app-debug.apk`.
+### 3. Resistencia a Reinicios
+- Se ha añadido el permiso `RECEIVE_BOOT_COMPLETED` y registrado la acción `android.intent.action.BOOT_COMPLETED` en el manifiesto.
+- Si el teléfono del empleado se apaga o reinicia, la aplicación reprograma los dos recordatorios automáticamente al volver a encender el dispositivo.
 
-## Pasos finales para el usuario
+## Verificación Realizada
 
-### Subida del código (Push)
-Debido a que GitHub requiere autenticación personal, debes ejecutar el siguiente comando en la **Terminal de Android Studio** (o usar el menú *Git > Push* del IDE):
-
-```bash
-git push -u origin master --tags
-```
-
-### Crear la "Release" con el APK
-Para que el personal pueda descargar la app de forma oficial desde GitHub:
-1. Entra en tu repositorio en GitHub.
-2. Haz clic en **"Create a new release"** (en el lado derecho).
-3. Elige el tag `v1.2-RC`.
-4. Ponle un título: `Versión 1.2 RC - Lanzamiento Oficial`.
-5. **IMPORTANTE**: Arrastra y suelta el archivo `app-debug.apk` en el recuadro que dice *"Attach binaries by dropping them here"*.
-6. Haz clic en **"Publish release"**.
-
-> [!CAUTION]
-> Asegúrate de no borrar el archivo `README.md` ya que es tu protección legal pública frente a terceros.
+- [x] **Compilación**: `./gradlew assembleDebug` ejecutado con éxito.
+- [x] **Seguridad**: Uso de `PendingIntent` con banderas inmutables (`FLAG_IMMUTABLE`) para compatibilidad completa con Android 12+.
+- [x] **Manifiesto**: Permisos y receptor configurados correctamente.
