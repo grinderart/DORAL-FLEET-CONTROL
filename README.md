@@ -1,6 +1,6 @@
 # DORAL Fleet Control
 
-![Status](https://img.shields.io/badge/Version-2.0--ALPHA-orange)
+![Status](https://img.shields.io/badge/Version-2.1--FINAL-green)
 ![Platform](https://img.shields.io/badge/Platform-Android-blue)
 ![Kotlin](https://img.shields.io/badge/Language-Kotlin-purple)
 
@@ -9,8 +9,9 @@
 ## 🚀 Características principales
 
 - **Identificación de Pilotos**: Registro persistente del personal para agilizar el uso diario (con alta visibilidad y alto contraste).
-- **Servidor Dinámico & QR de Configuración (v2.0-ALPHA)**: Opción en el menú para escanear un QR con la URL del servidor o pegarla manualmente.
-- **Recordatorios Diarios de Fichaje (07:00 AM y 15:50 PM)**: Notificaciones automáticas para recordar el fichaje al inicio y fin de la jornada, resistentes a reinicios.
+- **Servidor Dinámico & QR de Configuración**: Opción en el menú para escanear un QR con la URL del servidor o pegarla manualmente.
+- **Recordatorios Diarios de Fichaje (Lunes a Viernes)**: Notificaciones automáticas a las 07:00 AM y 15:50 PM para recordar el fichaje al inicio y fin de la jornada laboral.
+- **Actualizaciones Automáticas (OTA)**: Comprobación automática de nuevas versiones desde la API de GitHub Releases.
 - **Escáner QR Nativo**: Integración con Google Play Services Code Scanner para un escaneo rápido y seguro sin necesidad de permisos de cámara manuales.
 - **Registro Manual**: Opción alternativa para vehículos sin código QR asignado con validación estricta de formato (7 caracteres).
 - **Persistencia de Datos**: La aplicación recuerda la última matrícula gestionada gracias a Jetpack DataStore.

@@ -114,7 +114,7 @@ private val SERVER_URL_KEY = stringPreferencesKey("server_url")
 class MainActivity : ComponentActivity() {
 
     private val DEFAULT_URL_SCRIPT = "https://script.google.com/macros/s/AKfycbxiw3bZHGE502h7hfPj85XBlOQGJpSMlTd9l0uKjEqqo0SpxKnmrvKMWEkGVHlkOGfl7w/exec"
-    private val CURRENT_VERSION_TAG = "v2.0-ALPHA"
+    private val CURRENT_VERSION_TAG = "v2.1-FINAL"
     private val GITHUB_RELEASE_API_URL = "https://api.github.com/repos/grinderart/DORAL-FLEET-CONTROL/releases/latest"
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -453,7 +453,7 @@ class MainActivity : ComponentActivity() {
                     Column {
                         Text("DORAL Fleet Control", fontWeight = FontWeight.Bold)
                         Spacer(modifier = Modifier.height(4.dp))
-                        Text("Versión 2.0-ALPHA", fontSize = 12.sp, color = Color.Gray)
+                        Text("Versión 2.1 FINAL", fontSize = 12.sp, color = Color.Gray)
                         Spacer(modifier = Modifier.height(8.dp))
                         Text("Desarrollado para la gestión de flota de DORAL.")
                         Spacer(modifier = Modifier.height(8.dp))

@@ -1,29 +1,36 @@
-# Plan de Implementación: Comprobación de Actualizaciones OTA y Lanzamiento v2.0-ALPHA
+# Plan de Implementación: Versión 2.1 FINAL (Lunes a Viernes)
 
-Este plan aborda la actualización del texto legal en la aplicación, la implementación del comprobador de actualizaciones OTA desde GitHub API y la subida final del repositorio.
+Este plan aborda el ajuste de los recordatorios automáticos de fichaje (07:00 AM y 15:50 PM) para que funcionen exclusivamente de **Lunes a Viernes**, respetando los fines de semana, y consolida la **Versión 2.1 FINAL**.
 
 ## Cambios Propuestos
 
-### 1. Sincronización del Blindaje Legal
-- Actualizar el diálogo `LicenceDialog` en `MainActivity.kt` para reflejar con precisión las nuevas cláusulas del `README.md`:
-    - Tarifas profesionales por mantenimiento/soporte.
-    - Prohibición de modificaciones no autorizadas y sublicenciamiento.
+### 1. Programador de Recordatorios (`ReminderScheduler.kt`)
 
-### 2. Comprobador de Actualizaciones OTA (GitHub Releases API)
-- Implementar una consulta asíncrona a `https://api.github.com/repos/grinderart/DORAL-FLEET-CONTROL/releases/latest` usando OkHttp.
-- Extraer la última versión disponible (`tag_name`) y la URL de descarga del `.apk` (`browser_download_url`).
-- Si la versión en GitHub es más reciente que la instalada:
-    - Mostrar un diálogo `UpdateDialog`: *"¡Nueva versión disponible (vX.X)! ¿Deseas descargar la actualización?"*.
-    - Al aceptar, abrir el enlace de descarga oficial en el navegador del sistema para instalar el nuevo APK de forma segura.
+#### [MODIFY] [ReminderScheduler.kt](file:///home/rtorgil/AndroidStudioProjects/DORALFLEETCONTROL/app/src/main/java/com/example/doralfleetcontrol/ReminderScheduler.kt)
+- Añadir lógica de filtrado de días de la semana (`Calendar.DAY_OF_WEEK`).
+- Si la fecha calculada cae en **Sábado** (`Calendar.SATURDAY`) o **Domingo** (`Calendar.SUNDAY`), la alarma avanzará automáticamente hasta el próximo **Lunes** a la misma hora (07:00 AM o 15:50 PM).
+- Esto garantiza que los viernes por la tarde, tras saltar la alarma de las 15:50, el siguiente recordatorio se programe automáticamente para el lunes a las 07:00 AM.
 
-### 3. Commit, Tag v2.0-ALPHA y Push a GitHub
-- Guardar todos los cambios en Git.
-- Crear la etiqueta oficial `v2.0-ALPHA`.
-- Subir código y tags a GitHub (`git push origin main --tags`).
+---
+
+### 2. Actualización de Versión a 2.1 FINAL
+
+#### [MODIFY] [MainActivity.kt](file:///home/rtorgil/AndroidStudioProjects/DORALFLEETCONTROL/app/src/main/java/com/example/doralfleetcontrol/MainActivity.kt)
+- Cambiar `CURRENT_VERSION_TAG = "v2.1-FINAL"`.
+- Actualizar el texto del cuadro de créditos a **"Versión 2.1 FINAL"**.
+
+#### [MODIFY] [README.md](file:///home/rtorgil/AndroidStudioProjects/DORALFLEETCONTROL/README.md)
+- Actualizar badge de versión a `Version-2.1_FINAL`.
+- Reflejar que los recordatorios de fichaje operan de Lunes a Viernes.
+
+---
+
+### 3. Publicación y Lanzamiento
+
+- Compilar APK para v2.1 FINAL.
+- Guardar commit en Git, crear etiqueta `v2.1-FINAL` y hacer push a GitHub.
 
 ## Plan de Verificación
 
-### Manual
-1. **Verificación Legal**: Abrir el menú 3 puntos > Licencia y verificar que incluye la cláusula de soporte/mantenimiento.
-2. **Prueba OTA**: Verificar que la llamada al API de GitHub recupera correctamente la versión publicada.
-3. **Build**: Generar el APK compilado para adjuntar a la Release en GitHub.
+### Prueba Lógica
+- Verificar que el cálculo de `Calendar` para días como Viernes, Sábado y Domingo devuelva la fecha del Lunes siguiente a las 07:00 AM o 15:50 PM.

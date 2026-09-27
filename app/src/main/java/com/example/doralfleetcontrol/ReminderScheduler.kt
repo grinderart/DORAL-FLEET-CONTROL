@@ -64,8 +64,13 @@ object ReminderScheduler {
             set(Calendar.SECOND, 0)
             set(Calendar.MILLISECOND, 0)
 
-            // Si la hora de hoy ya ha pasado, programar para mañana
+            // Si la hora de hoy ya ha pasado, programar para el día siguiente
             if (timeInMillis <= System.currentTimeMillis()) {
+                add(Calendar.DAY_OF_YEAR, 1)
+            }
+
+            // Omitir fines de semana (Sábado -> Lunes, Domingo -> Lunes)
+            while (get(Calendar.DAY_OF_WEEK) == Calendar.SATURDAY || get(Calendar.DAY_OF_WEEK) == Calendar.SUNDAY) {
                 add(Calendar.DAY_OF_YEAR, 1)
             }
         }
