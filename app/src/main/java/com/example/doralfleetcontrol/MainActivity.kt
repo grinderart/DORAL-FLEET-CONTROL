@@ -425,20 +425,36 @@ class MainActivity : ComponentActivity() {
                                     .addOnSuccessListener { barcode ->
                                         val rawValue = barcode.rawValue
                                         if (!rawValue.isNullOrBlank()) {
+                                            val clean = rawValue.trim()
                                             try {
-                                                if (rawValue.trim().startsWith("{")) {
-                                                    val json = JSONObject(rawValue)
+                                                if (clean.startsWith("{")) {
+                                                    val json = JSONObject(clean)
                                                     val scannedSede = json.optString("sede", "")
                                                     val scannedUrl = json.optString("url", "")
-                                                    if (scannedSede.isNotBlank()) sedeInput = scannedSede
-                                                    if (scannedUrl.isNotBlank()) urlInput = scannedUrl
-                                                } else if (rawValue.startsWith("http")) {
-                                                    urlInput = rawValue
+                                                    val finalSede = if (scannedSede.isBlank()) "DEMO" else scannedSede
+                                                    if (scannedUrl.isNotBlank()) {
+                                                        onSaveServerConfig(finalSede, scannedUrl)
+                                                        Toast.makeText(context, "Sede configurada: $finalSede", Toast.LENGTH_LONG).show()
+                                                        showServerDialog = false
+                                                    } else {
+                                                        Toast.makeText(context, "QR no contiene una URL de servidor válida", Toast.LENGTH_LONG).show()
+                                                    }
+                                                } else if (clean.startsWith("http")) {
+                                                    val finalSede = if (sedeInput.isBlank()) "DEMO" else sedeInput
+                                                    onSaveServerConfig(finalSede, clean)
+                                                    Toast.makeText(context, "Servidor configurado", Toast.LENGTH_SHORT).show()
+                                                    showServerDialog = false
+                                                } else {
+                                                    Toast.makeText(context, "Código QR no reconocido", Toast.LENGTH_LONG).show()
                                                 }
-                                                Toast.makeText(context, "Datos de servidor leídos por QR", Toast.LENGTH_SHORT).show()
                                             } catch (e: Exception) {
-                                                if (rawValue.startsWith("http")) {
-                                                    urlInput = rawValue
+                                                if (clean.startsWith("http")) {
+                                                    val finalSede = if (sedeInput.isBlank()) "DEMO" else sedeInput
+                                                    onSaveServerConfig(finalSede, clean)
+                                                    Toast.makeText(context, "Servidor configurado", Toast.LENGTH_SHORT).show()
+                                                    showServerDialog = false
+                                                } else {
+                                                    Toast.makeText(context, "Error al leer el QR de servidor", Toast.LENGTH_LONG).show()
                                                 }
                                             }
                                         }
@@ -842,10 +858,28 @@ class MainActivity : ComponentActivity() {
                                 .addOnSuccessListener { barcode ->
                                     val rawValue: String? = barcode.rawValue
                                     if (rawValue != null) {
-                                        if (rawValue.length == 7) {
-                                            scannedPlate = rawValue
-                                            lifecycleScope.launch { saveLastPlate(rawValue) }
-                                            enviarDatosASheets(rawValue, pilotName, pendingAction, currentServerUrl)
+                                        val clean = rawValue.trim()
+                                        // Detección inteligente de QR de Servidor/Sede
+                                        if (clean.startsWith("{")) {
+                                            try {
+                                                val json = JSONObject(clean)
+                                                val scannedSede = json.optString("sede", "")
+                                                val scannedUrl = json.optString("url", "")
+                                                if (scannedUrl.isNotBlank()) {
+                                                    val finalSede = if (scannedSede.isBlank()) "DEMO" else scannedSede
+                                                    onSaveServerConfig(finalSede, scannedUrl)
+                                                    Toast.makeText(this@MainActivity, "Servidor y Sede configurados: $finalSede", Toast.LENGTH_LONG).show()
+                                                    return@addOnSuccessListener
+                                                }
+                                            } catch (e: Exception) {
+                                                // No era JSON de servidor válido
+                                            }
+                                        }
+
+                                        if (clean.length == 7) {
+                                            scannedPlate = clean
+                                            lifecycleScope.launch { saveLastPlate(clean) }
+                                            enviarDatosASheets(clean, pilotName, pendingAction, currentServerUrl)
                                         } else {
                                             Toast.makeText(this@MainActivity, "Operación Incorrecta", Toast.LENGTH_LONG).show()
                                         }

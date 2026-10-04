@@ -1,24 +1,33 @@
-# Walkthrough - Versión 2.1 FINAL (Lunes a Viernes + Publicado en GitHub)
+# Walkthrough - Indicador de Sede Conectada y Configuración de Servidor
 
-Se ha completado el ajuste del programador de recordatorios para operar exclusivamente de **Lunes a Viernes**, excluyendo los fines de semana, y se ha cerrado y publicado la **Versión 2.1 FINAL** en GitHub.
+Se ha implementado el indicador visual de **Sede Conectada** directamente en la pantalla principal sobre el logotipo de DORAL, permitiendo identificar claramente a qué base de datos/departamento está enviando los registros cada dispositivo.
 
-## Novedades de la Versión 2.1 FINAL
+## Novedades Implementadas
 
-### 1. Recordatorios Exclusivos de Lunes a Viernes
-- **Cálculo de Días (`ReminderScheduler.kt`)**: Se ha incorporado una verificación mediante `Calendar.DAY_OF_WEEK`.
-- **Filtro de Fines de Semana**: Si el cálculo de la siguiente alarma cae en **Sábado** o **Domingo**, la alarma salta automáticamente hasta el **Lunes siguiente** a la hora correspondiente (07:00 AM o 15:50 PM).
-- **Tranquilidad los Fines de Semana**: El personal no recibirá avisos de fichaje durante el sábado o domingo.
+### 1. Indicador Visual de Sede
+- **Ubicación Estratégica**: Colocado justo encima del logotipo principal en `MainScreen` e `IdentificationScreen`.
+- **Estilo**: Texto en verde suave (`#81C784`) con el mensaje: **`Conectado a la Sede de [Nombre]`** (por defecto `"DEMO"`).
 
-### 2. Estado del Repositorio
-- **Versión**: Actualizada a `Versión 2.1 FINAL` en Créditos e información interna de la App.
-- **Git Commit**: Cambios confirmados en la rama `main`.
-- **Git Tag**: Etiqueta oficial `v2.1-FINAL` creada.
-- **Push a GitHub**: **Exitoso** (`main -> main`, `v2.1-FINAL -> v2.1-FINAL`).
+### 2. Configuración de Servidor y Sede
+- **Diálogo Actualizado (`ServerConfigDialog`)**:
+  - Campo para el **Nombre de la Sede** (ej: `DEMO`, `Taller Sur`, `Repuestos Central`).
+  - Campo para la **URL del Servidor**.
+  - **Escáner QR Inteligente**: Si se escanea un QR con formato JSON `{"sede": "...", "url": "..."}`, la app autocompleta e identifica ambos campos al instante.
+- **Persistencia**: La sede seleccionada se guarda en `DataStore` (`SEDE_NAME_KEY`), manteniendo el nombre entre reinicios de la aplicación.
+
+### 3. Documentación de Futuro (Opción 1)
+- Se ha incluido en el plan de la app las instrucciones técnicas para que, en futuras versiones de Google Apps Script, la app pueda descubrir el nombre de la sede automáticamente mediante `doGet`.
 
 ---
 
-## Verificación Realizada
+## Capturas de Previsualización
 
-- [x] **Compilación**: `./gradlew assembleDebug` completado sin errores.
-- [x] **Prueba Lógica de Fecha**: Confirmado que al programar el viernes por la tarde, la fecha calculada avanza al lunes por la mañana.
-- [x] **GitHub**: Cambios y tags disponibles públicamente en `https://github.com/grinderart/DORAL-FLEET-CONTROL`.
+```carousel
+![Pantalla Principal con Indicador de Sede](file:///home/rtorgil/AndroidStudioProjects/DORALFLEETCONTROL/.artifacts/eb7b37ac-c5a3-4889-8dfd-b1427d09f048/preview_sede_indicator.png)
+<!-- slide -->
+![Diálogo de Configuración de Servidor y Sede](file:///home/rtorgil/AndroidStudioProjects/DORALFLEETCONTROL/.artifacts/eb7b37ac-c5a3-4889-8dfd-b1427d09f048/preview_sede_dialog.png)
+```
+
+## Verificación Realizada
+- [x] **Compilación**: `./gradlew assembleDebug` exitoso.
+- [x] **GitHub**: Cambios subidos a la rama `main` en `https://github.com/grinderart/DORAL-FLEET-CONTROL`.
