@@ -110,6 +110,14 @@ private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(na
 private val PILOT_NAME_KEY = stringPreferencesKey("pilot_name")
 private val LAST_PLATE_KEY = stringPreferencesKey("last_plate")
 private val SERVER_URL_KEY = stringPreferencesKey("server_url")
+private val SEDE_NAME_KEY = stringPreferencesKey("sede_name")
+
+data class AppSettings(
+    val pilotName: String = "",
+    val lastPlate: String = "Ninguna",
+    val serverUrl: String = "",
+    val sedeName: String = "DEMO"
+)
 
 class MainActivity : ComponentActivity() {
 
@@ -124,17 +132,19 @@ class MainActivity : ComponentActivity() {
             DORALFLEETCONTROLTheme {
                 val settings by remember {
                     dataStore.data.map { preferences ->
-                        Triple(
-                            preferences[PILOT_NAME_KEY] ?: "",
-                            preferences[LAST_PLATE_KEY] ?: "Ninguna",
-                            preferences[SERVER_URL_KEY] ?: DEFAULT_URL_SCRIPT
+                        AppSettings(
+                            pilotName = preferences[PILOT_NAME_KEY] ?: "",
+                            lastPlate = preferences[LAST_PLATE_KEY] ?: "Ninguna",
+                            serverUrl = preferences[SERVER_URL_KEY] ?: DEFAULT_URL_SCRIPT,
+                            sedeName = preferences[SEDE_NAME_KEY] ?: "DEMO"
                         )
                     }
-                }.collectAsState(initial = Triple("", "Ninguna", DEFAULT_URL_SCRIPT))
+                }.collectAsState(initial = AppSettings())
 
-                val pilotName = settings.first
-                val lastPlate = settings.second
-                val serverUrl = settings.third.ifBlank { DEFAULT_URL_SCRIPT }
+                val pilotName = settings.pilotName
+                val lastPlate = settings.lastPlate
+                val serverUrl = settings.serverUrl.ifBlank { DEFAULT_URL_SCRIPT }
+                val sedeName = settings.sedeName.ifBlank { "DEMO" }
 
                 val context = LocalContext.current
                 var otaUpdateInfo by remember { mutableStateOf<Pair<String, String>?>(null) }
@@ -212,9 +222,13 @@ class MainActivity : ComponentActivity() {
                 TiledBackground {
                     if (pilotName.isBlank()) {
                         IdentificationScreen(
+                            currentSedeName = sedeName,
                             currentServerUrl = serverUrl,
-                            onSaveServerUrl = { newUrl ->
-                                lifecycleScope.launch { saveServerUrl(newUrl) }
+                            onSaveServerConfig = { newSede, newUrl ->
+                                lifecycleScope.launch {
+                                    saveSedeName(newSede)
+                                    saveServerUrl(newUrl)
+                                }
                             },
                             onStart = { name ->
                                 lifecycleScope.launch { saveName(name) }
@@ -224,9 +238,13 @@ class MainActivity : ComponentActivity() {
                         MainScreen(
                             pilotName = pilotName,
                             initialPlate = lastPlate,
+                            currentSedeName = sedeName,
                             currentServerUrl = serverUrl,
-                            onSaveServerUrl = { newUrl ->
-                                lifecycleScope.launch { saveServerUrl(newUrl) }
+                            onSaveServerConfig = { newSede, newUrl ->
+                                lifecycleScope.launch {
+                                    saveSedeName(newSede)
+                                    saveServerUrl(newUrl)
+                                }
                             }
                         )
                     }
@@ -250,6 +268,12 @@ class MainActivity : ComponentActivity() {
     private suspend fun saveServerUrl(url: String) {
         dataStore.edit { preferences ->
             preferences[SERVER_URL_KEY] = url
+        }
+    }
+
+    private suspend fun saveSedeName(sede: String) {
+        dataStore.edit { preferences ->
+            preferences[SEDE_NAME_KEY] = sede
         }
     }
 
@@ -300,8 +324,9 @@ class MainActivity : ComponentActivity() {
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     fun AppTopBar(
+        currentSedeName: String,
         currentServerUrl: String,
-        onSaveServerUrl: (String) -> Unit,
+        onSaveServerConfig: (sedeName: String, serverUrl: String) -> Unit,
         onExit: () -> Unit
     ) {
         var showMenu by remember { mutableStateOf(false) }
@@ -362,23 +387,34 @@ class MainActivity : ComponentActivity() {
             )
         )
 
-        // DIÁLOGO CONFIGURACIÓN SERVIDOR (v2.0-ALPHA con Escáner QR)
+        // DIÁLOGO CONFIGURACIÓN SERVIDOR Y SEDE
         if (showServerDialog) {
+            var sedeInput by remember { mutableStateOf(currentSedeName) }
             var urlInput by remember { mutableStateOf(currentServerUrl) }
             val context = LocalContext.current
 
             AlertDialog(
                 onDismissRequest = { showServerDialog = false },
-                title = { Text("Configurar Servidor") },
+                title = { Text("Configurar Servidor y Sede") },
                 text = {
                     Column {
-                        Text(
-                            "Establezca la URL del Google Apps Script para esta sede:",
-                            fontSize = 14.sp
+                        Text("Nombre de la Sede / Departamento:", fontSize = 13.sp)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        OutlinedTextField(
+                            value = sedeInput,
+                            onValueChange = { sedeInput = it },
+                            label = { Text("Nombre de la Sede") },
+                            placeholder = { Text("Ej: DEMO, Taller Sur, Repuestos") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            textStyle = TextStyle(color = Color.Black, fontSize = 14.sp)
                         )
-                        Spacer(modifier = Modifier.height(16.dp))
 
-                        // Botón de captura rápida por QR
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        Text("URL del Google Apps Script:", fontSize = 13.sp)
+                        Spacer(modifier = Modifier.height(4.dp))
+
                         OutlinedButton(
                             onClick = {
                                 val options = GmsBarcodeScannerOptions.Builder()
@@ -388,13 +424,23 @@ class MainActivity : ComponentActivity() {
                                 scanner.startScan()
                                     .addOnSuccessListener { barcode ->
                                         val rawValue = barcode.rawValue
-                                        if (!rawValue.isNullOrBlank() && rawValue.startsWith("http")) {
-                                            urlInput = rawValue
-                                            onSaveServerUrl(rawValue.trim())
-                                            Toast.makeText(context, "Servidor configurado por QR", Toast.LENGTH_SHORT).show()
-                                            showServerDialog = false
-                                        } else {
-                                            Toast.makeText(context, "QR no contiene una URL válida", Toast.LENGTH_LONG).show()
+                                        if (!rawValue.isNullOrBlank()) {
+                                            try {
+                                                if (rawValue.trim().startsWith("{")) {
+                                                    val json = JSONObject(rawValue)
+                                                    val scannedSede = json.optString("sede", "")
+                                                    val scannedUrl = json.optString("url", "")
+                                                    if (scannedSede.isNotBlank()) sedeInput = scannedSede
+                                                    if (scannedUrl.isNotBlank()) urlInput = scannedUrl
+                                                } else if (rawValue.startsWith("http")) {
+                                                    urlInput = rawValue
+                                                }
+                                                Toast.makeText(context, "Datos de servidor leídos por QR", Toast.LENGTH_SHORT).show()
+                                            } catch (e: Exception) {
+                                                if (rawValue.startsWith("http")) {
+                                                    urlInput = rawValue
+                                                }
+                                            }
                                         }
                                     }
                                     .addOnFailureListener { e ->
@@ -408,10 +454,7 @@ class MainActivity : ComponentActivity() {
                             Text("Escanear QR de Servidor")
                         }
 
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        Text("O pegue la dirección manualmente:", fontSize = 12.sp, color = Color.Gray)
-                        Spacer(modifier = Modifier.height(4.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
 
                         OutlinedTextField(
                             value = urlInput,
@@ -428,8 +471,9 @@ class MainActivity : ComponentActivity() {
                 confirmButton = {
                     Button(
                         onClick = {
+                            val finalSede = if (sedeInput.isBlank()) "DEMO" else sedeInput.trim()
                             if (urlInput.isNotBlank()) {
-                                onSaveServerUrl(urlInput.trim())
+                                onSaveServerConfig(finalSede, urlInput.trim())
                                 showServerDialog = false
                             }
                         }
@@ -537,8 +581,9 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     fun IdentificationScreen(
+        currentSedeName: String,
         currentServerUrl: String,
-        onSaveServerUrl: (String) -> Unit,
+        onSaveServerConfig: (String, String) -> Unit,
         onStart: (String) -> Unit
     ) {
         var nameInput by remember { mutableStateOf("") }
@@ -549,8 +594,9 @@ class MainActivity : ComponentActivity() {
             containerColor = Color.Transparent,
             topBar = {
                 AppTopBar(
+                    currentSedeName = currentSedeName,
                     currentServerUrl = currentServerUrl,
-                    onSaveServerUrl = onSaveServerUrl,
+                    onSaveServerConfig = onSaveServerConfig,
                     onExit = {
                         stopFleetService(context)
                         finishAndRemoveTask()
@@ -566,13 +612,23 @@ class MainActivity : ComponentActivity() {
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
+                // INDICADOR DE SEDE CONECTADA
+                Text(
+                    text = "Conectado a la Sede de $currentSedeName",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = Color(0xFF81C784)
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
                 Image(
                     painter = painterResource(id = R.drawable.logo_doral),
                     contentDescription = "Logo DORAL",
                     modifier = Modifier.size(150.dp)
                 )
 
-                Spacer(modifier = Modifier.height(32.dp))
+                Spacer(modifier = Modifier.height(28.dp))
 
                 Text(
                     text = "Bienvenido a DORAL",
@@ -591,7 +647,6 @@ class MainActivity : ComponentActivity() {
 
                 Spacer(modifier = Modifier.height(32.dp))
 
-                // CORRECCIÓN BUG VISIBILIDAD DE TEXTO
                 OutlinedTextField(
                     value = nameInput,
                     onValueChange = { nameInput = it },
@@ -634,8 +689,9 @@ class MainActivity : ComponentActivity() {
     fun MainScreen(
         pilotName: String,
         initialPlate: String,
+        currentSedeName: String,
         currentServerUrl: String,
-        onSaveServerUrl: (String) -> Unit
+        onSaveServerConfig: (String, String) -> Unit
     ) {
         var scannedPlate by remember { mutableStateOf(initialPlate) }
         val context = LocalContext.current
@@ -655,8 +711,9 @@ class MainActivity : ComponentActivity() {
             containerColor = Color.Transparent,
             topBar = {
                 AppTopBar(
+                    currentSedeName = currentSedeName,
                     currentServerUrl = currentServerUrl,
-                    onSaveServerUrl = onSaveServerUrl,
+                    onSaveServerConfig = onSaveServerConfig,
                     onExit = {
                         stopFleetService(context)
                         finishAndRemoveTask()
@@ -671,6 +728,16 @@ class MainActivity : ComponentActivity() {
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
+                // INDICADOR DE SEDE CONECTADA
+                Text(
+                    text = "Conectado a la Sede de $currentSedeName",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = Color(0xFF81C784)
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
                 Image(
                     painter = painterResource(id = R.drawable.logo_doral),
                     contentDescription = "Logo DORAL",
@@ -947,14 +1014,24 @@ class MainActivity : ComponentActivity() {
             TiledBackground {
                 AlertDialog(
                     onDismissRequest = { },
-                    title = { Text("Configurar Servidor") },
+                    title = { Text("Configurar Servidor y Sede") },
                     text = {
                         Column {
-                            Text(
-                                "Establezca la URL del Google Apps Script para esta sede:",
-                                fontSize = 14.sp
+                            Text("Nombre de la Sede / Departamento:", fontSize = 13.sp)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            OutlinedTextField(
+                                value = "DEMO",
+                                onValueChange = { },
+                                label = { Text("Nombre de la Sede") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                textStyle = TextStyle(color = Color.Black, fontSize = 14.sp)
                             )
-                            Spacer(modifier = Modifier.height(16.dp))
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            Text("URL del Google Apps Script:", fontSize = 13.sp)
+                            Spacer(modifier = Modifier.height(4.dp))
 
                             OutlinedButton(
                                 onClick = { },
@@ -965,10 +1042,7 @@ class MainActivity : ComponentActivity() {
                                 Text("Escanear QR de Servidor")
                             }
 
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            Text("O pegue la dirección manualmente:", fontSize = 12.sp, color = Color.Gray)
-                            Spacer(modifier = Modifier.height(4.dp))
+                            Spacer(modifier = Modifier.height(8.dp))
 
                             OutlinedTextField(
                                 value = "https://script.google.com/macros/s/.../exec",
@@ -1002,8 +1076,9 @@ class MainActivity : ComponentActivity() {
         DORALFLEETCONTROLTheme {
             TiledBackground {
                 IdentificationScreen(
+                    currentSedeName = "DEMO",
                     currentServerUrl = "https://script.google.com/...",
-                    onSaveServerUrl = {},
+                    onSaveServerConfig = { _, _ -> },
                     onStart = {}
                 )
             }
@@ -1018,8 +1093,9 @@ class MainActivity : ComponentActivity() {
                 MainScreen(
                     pilotName = "Juan Pérez",
                     initialPlate = "1234ABC",
+                    currentSedeName = "DEMO",
                     currentServerUrl = "https://script.google.com/...",
-                    onSaveServerUrl = {}
+                    onSaveServerConfig = { _, _ -> }
                 )
             }
         }

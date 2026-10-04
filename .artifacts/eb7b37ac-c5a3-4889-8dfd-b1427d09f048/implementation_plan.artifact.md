@@ -1,36 +1,50 @@
-# Plan de Implementación: Versión 2.1 FINAL (Lunes a Viernes)
+# Plan de Implementación: Visualización de Sede Conectada (Opción 2 + Guía Opción 1)
 
-Este plan aborda el ajuste de los recordatorios automáticos de fichaje (07:00 AM y 15:50 PM) para que funcionen exclusivamente de **Lunes a Viernes**, respetando los fines de semana, y consolida la **Versión 2.1 FINAL**.
+Este plan detalla la adición del indicador de **Sede Conectada** encima del logotipo de DORAL, permitiendo configurar tanto el nombre de la sede como la URL del servidor sin necesidad de modificar el script de Google actual.
 
 ## Cambios Propuestos
 
-### 1. Programador de Recordatorios (`ReminderScheduler.kt`)
-
-#### [MODIFY] [ReminderScheduler.kt](file:///home/rtorgil/AndroidStudioProjects/DORALFLEETCONTROL/app/src/main/java/com/example/doralfleetcontrol/ReminderScheduler.kt)
-- Añadir lógica de filtrado de días de la semana (`Calendar.DAY_OF_WEEK`).
-- Si la fecha calculada cae en **Sábado** (`Calendar.SATURDAY`) o **Domingo** (`Calendar.SUNDAY`), la alarma avanzará automáticamente hasta el próximo **Lunes** a la misma hora (07:00 AM o 15:50 PM).
-- Esto garantiza que los viernes por la tarde, tras saltar la alarma de las 15:50, el siguiente recordatorio se programe automáticamente para el lunes a las 07:00 AM.
-
----
-
-### 2. Actualización de Versión a 2.1 FINAL
+### 1. Persistencia de Sede (DataStore)
 
 #### [MODIFY] [MainActivity.kt](file:///home/rtorgil/AndroidStudioProjects/DORALFLEETCONTROL/app/src/main/java/com/example/doralfleetcontrol/MainActivity.kt)
-- Cambiar `CURRENT_VERSION_TAG = "v2.1-FINAL"`.
-- Actualizar el texto del cuadro de créditos a **"Versión 2.1 FINAL"**.
-
-#### [MODIFY] [README.md](file:///home/rtorgil/AndroidStudioProjects/DORALFLEETCONTROL/README.md)
-- Actualizar badge de versión a `Version-2.1_FINAL`.
-- Reflejar que los recordatorios de fichaje operan de Lunes a Viernes.
+- **Nueva Clave DataStore**: Añadir `SEDE_NAME_KEY` con valor por defecto `"DEMO"`.
+- **Carga de Estado**: Leer `sedeName` e integrarlo en el flujo global de datos de la app.
 
 ---
 
-### 3. Publicación y Lanzamiento
+### 2. Interfaz de Usuario (Compose)
 
-- Compilar APK para v2.1 FINAL.
-- Guardar commit en Git, crear etiqueta `v2.1-FINAL` y hacer push a GitHub.
+#### [MODIFY] [MainActivity.kt](file:///home/rtorgil/AndroidStudioProjects/DORALFLEETCONTROL/app/src/main/java/com/example/doralfleetcontrol/MainActivity.kt)
+- **Indicador de Sede**: Añadir el texto **`Conectado a la Sede de [Nombre]`** justo encima del logotipo de DORAL en `MainScreen` e `IdentificationScreen` (estilizado en verde suave `0xFF81C784`).
+- **Configuración de Servidor Actualizada (`ServerConfigDialog`)**:
+    - Campo 1: **Nombre de la Sede** (ej: `DEMO`, `Sede Central`, `Taller Sur`).
+    - Campo 2: **URL del Servidor**.
+    - **Escáner QR Inteligente**: Si el QR escaneado contiene un formato con metadatos JSON `{"sede": "...", "url": "..."}`, la app autocompletará ambos campos automáticamente. Si es una URL simple, actualizará la URL y mantendrá o solicitará el nombre.
+
+---
+
+### 3. Guía de Futuro: Guía de la Opción 1 (Auto-Descubrimiento en Servidor)
+
+Para cuando se creen las nuevas hojas de cálculo de Google y se desee que la app descubra el nombre de la sede automáticamente sin escribir nada:
+
+```javascript
+// Añadir esta función en el Google Apps Script de cada nueva hoja:
+function doGet(e) {
+  var nombreSede = SpreadsheetApp.getActiveSpreadsheet().getName();
+  var respuesta = {
+    "status": "OK",
+    "sede": nombreSede
+  };
+  return ContentService.createTextOutput(JSON.stringify(respuesta))
+                       .setMimeType(ContentService.MimeType.JSON);
+}
+```
+
+---
 
 ## Plan de Verificación
 
-### Prueba Lógica
-- Verificar que el cálculo de `Calendar` para días como Viernes, Sábado y Domingo devuelva la fecha del Lunes siguiente a las 07:00 AM o 15:50 PM.
+### Manual
+1. **Verificación Visual**: Abrir la pantalla principal y confirmar que aparece *"Conectado a la Sede de DEMO"* en verde sobre el logotipo.
+2. **Cambio de Sede**: Ir al menú 3 puntos > Servidor, cambiar la sede a *"Sede Norte"* y guardar. Verificar que el texto de la pantalla cambia a *"Conectado a la Sede de Sede Norte"*.
+3. **Escaneo QR**: Probar el escáner de servidor con un QR de formato simple o con metadatos.

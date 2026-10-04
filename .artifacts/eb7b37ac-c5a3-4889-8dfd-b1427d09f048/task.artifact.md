@@ -1,7 +1,7 @@
-# Tareas de Implementación - Versión 2.1 FINAL
+# Tareas de Implementación - Visualización de Sede
 
-- [ ] Modificar `ReminderScheduler.kt` para omitir Sábados y Domingos en el cálculo de alarmas.
-- [ ] Actualizar `CURRENT_VERSION_TAG = "v2.1-FINAL"` y los Créditos en `MainActivity.kt`.
-- [ ] Actualizar `README.md` con los datos de la v2.1 FINAL.
-- [ ] Compilar APK versión 2.1 FINAL.
-- [ ] Hacer commit, tag `v2.1-FINAL` y push a GitHub.
+- [ ] Definir `SEDE_NAME_KEY` en DataStore (valor por defecto `"DEMO"`).
+- [ ] Añadir texto `Conectado a la Sede de [Sede]` encima del logotipo en `MainScreen` e `IdentificationScreen`.
+- [ ] Actualizar `ServerConfigDialog` para incluir el campo del nombre de la sede y soporte de lectura QR inteligente.
+- [ ] Compilar y verificar con Previews.
+- [ ] Actualizar `README.md` y realizar commit/tag/push a GitHub.
