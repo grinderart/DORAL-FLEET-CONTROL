@@ -1,6 +1,6 @@
 # DORAL Fleet Control
 
-![Status](https://img.shields.io/badge/Version-2.1--FINAL-green)
+![Status](https://img.shields.io/badge/Version-2.2-blue)
 ![Platform](https://img.shields.io/badge/Platform-Android-blue)
 ![Kotlin](https://img.shields.io/badge/Language-Kotlin-purple)
 
@@ -9,7 +9,8 @@
 ## 🚀 Características principales
 
 - **Identificación de Pilotos**: Registro persistente del personal para agilizar el uso diario (con alta visibilidad y alto contraste).
-- **Servidor Dinámico & QR de Configuración**: Opción en el menú para escanear un QR con la URL del servidor o pegarla manualmente.
+- **Indicador de Sede y Servidor Dinámico (v2.2)**: Muestra la sede conectada sobre el logo y permite cambiar la sede/servidor mediante QR o teclado.
+- **Acceso a Reparto UM (v2.2)**: Enlace directo en el menú de 3 puntos a la guía de ayuda e instrucciones de reparto para conductores.
 - **Recordatorios Diarios de Fichaje (Lunes a Viernes)**: Notificaciones automáticas a las 07:00 AM y 15:50 PM para recordar el fichaje al inicio y fin de la jornada laboral.
 - **Actualizaciones Automáticas (OTA)**: Comprobación automática de nuevas versiones desde la API de GitHub Releases.
 - **Escáner QR Nativo**: Integración con Google Play Services Code Scanner para un escaneo rápido y seguro sin necesidad de permisos de cámara manuales.

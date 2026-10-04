@@ -36,6 +36,7 @@ import androidx.compose.material.icons.filled.Assignment
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.VpnKey
@@ -116,13 +117,13 @@ data class AppSettings(
     val pilotName: String = "",
     val lastPlate: String = "Ninguna",
     val serverUrl: String = "",
-    val sedeName: String = "DEMO"
+    val sedeName: String = "Sin Sede"
 )
 
 class MainActivity : ComponentActivity() {
 
     private val DEFAULT_URL_SCRIPT = "https://script.google.com/macros/s/AKfycbxiw3bZHGE502h7hfPj85XBlOQGJpSMlTd9l0uKjEqqo0SpxKnmrvKMWEkGVHlkOGfl7w/exec"
-    private val CURRENT_VERSION_TAG = "v2.1-FINAL"
+    private val CURRENT_VERSION_TAG = "v2.2"
     private val GITHUB_RELEASE_API_URL = "https://api.github.com/repos/grinderart/DORAL-FLEET-CONTROL/releases/latest"
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -136,7 +137,7 @@ class MainActivity : ComponentActivity() {
                             pilotName = preferences[PILOT_NAME_KEY] ?: "",
                             lastPlate = preferences[LAST_PLATE_KEY] ?: "Ninguna",
                             serverUrl = preferences[SERVER_URL_KEY] ?: DEFAULT_URL_SCRIPT,
-                            sedeName = preferences[SEDE_NAME_KEY] ?: "DEMO"
+                            sedeName = preferences[SEDE_NAME_KEY] ?: "Sin Sede"
                         )
                     }
                 }.collectAsState(initial = AppSettings())
@@ -144,7 +145,7 @@ class MainActivity : ComponentActivity() {
                 val pilotName = settings.pilotName
                 val lastPlate = settings.lastPlate
                 val serverUrl = settings.serverUrl.ifBlank { DEFAULT_URL_SCRIPT }
-                val sedeName = settings.sedeName.ifBlank { "DEMO" }
+                val sedeName = settings.sedeName.ifBlank { "Sin Sede" }
 
                 val context = LocalContext.current
                 var otaUpdateInfo by remember { mutableStateOf<Pair<String, String>?>(null) }
@@ -333,6 +334,7 @@ class MainActivity : ComponentActivity() {
         var showCredits by remember { mutableStateOf(false) }
         var showLicence by remember { mutableStateOf(false) }
         var showServerDialog by remember { mutableStateOf(false) }
+        val context = LocalContext.current
 
         TopAppBar(
             title = { },
@@ -348,6 +350,18 @@ class MainActivity : ComponentActivity() {
                     expanded = showMenu,
                     onDismissRequest = { showMenu = false }
                 ) {
+                    DropdownMenuItem(
+                        text = { Text("Reparto UM") },
+                        onClick = {
+                            showMenu = false
+                            val intent = Intent(
+                                Intent.ACTION_VIEW,
+                                Uri.parse("https://sites.google.com/domingoalonsogroup.com/repartoum/inicio?pli=1&authuser=0")
+                            )
+                            context.startActivity(intent)
+                        },
+                        leadingIcon = { Icon(Icons.Default.Language, contentDescription = null) }
+                    )
                     DropdownMenuItem(
                         text = { Text("Servidor") },
                         onClick = {
@@ -391,7 +405,6 @@ class MainActivity : ComponentActivity() {
         if (showServerDialog) {
             var sedeInput by remember { mutableStateOf(currentSedeName) }
             var urlInput by remember { mutableStateOf(currentServerUrl) }
-            val context = LocalContext.current
 
             AlertDialog(
                 onDismissRequest = { showServerDialog = false },
@@ -404,7 +417,7 @@ class MainActivity : ComponentActivity() {
                             value = sedeInput,
                             onValueChange = { sedeInput = it },
                             label = { Text("Nombre de la Sede") },
-                            placeholder = { Text("Ej: DEMO, Taller Sur, Repuestos") },
+                            placeholder = { Text("Ej: La Laguna, Taller Sur, Repuestos") },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                             textStyle = TextStyle(color = Color.Black, fontSize = 14.sp)
@@ -431,7 +444,7 @@ class MainActivity : ComponentActivity() {
                                                     val json = JSONObject(clean)
                                                     val scannedSede = json.optString("sede", "")
                                                     val scannedUrl = json.optString("url", "")
-                                                    val finalSede = if (scannedSede.isBlank()) "DEMO" else scannedSede
+                                                    val finalSede = if (scannedSede.isBlank()) "Sin Sede" else scannedSede
                                                     if (scannedUrl.isNotBlank()) {
                                                         onSaveServerConfig(finalSede, scannedUrl)
                                                         Toast.makeText(context, "Sede configurada: $finalSede", Toast.LENGTH_LONG).show()
@@ -440,7 +453,7 @@ class MainActivity : ComponentActivity() {
                                                         Toast.makeText(context, "QR no contiene una URL de servidor válida", Toast.LENGTH_LONG).show()
                                                     }
                                                 } else if (clean.startsWith("http")) {
-                                                    val finalSede = if (sedeInput.isBlank()) "DEMO" else sedeInput
+                                                    val finalSede = if (sedeInput.isBlank()) "Sin Sede" else sedeInput
                                                     onSaveServerConfig(finalSede, clean)
                                                     Toast.makeText(context, "Servidor configurado", Toast.LENGTH_SHORT).show()
                                                     showServerDialog = false
@@ -449,7 +462,7 @@ class MainActivity : ComponentActivity() {
                                                 }
                                             } catch (e: Exception) {
                                                 if (clean.startsWith("http")) {
-                                                    val finalSede = if (sedeInput.isBlank()) "DEMO" else sedeInput
+                                                    val finalSede = if (sedeInput.isBlank()) "Sin Sede" else sedeInput
                                                     onSaveServerConfig(finalSede, clean)
                                                     Toast.makeText(context, "Servidor configurado", Toast.LENGTH_SHORT).show()
                                                     showServerDialog = false
@@ -487,7 +500,7 @@ class MainActivity : ComponentActivity() {
                 confirmButton = {
                     Button(
                         onClick = {
-                            val finalSede = if (sedeInput.isBlank()) "DEMO" else sedeInput.trim()
+                            val finalSede = if (sedeInput.isBlank()) "Sin Sede" else sedeInput.trim()
                             if (urlInput.isNotBlank()) {
                                 onSaveServerConfig(finalSede, urlInput.trim())
                                 showServerDialog = false
@@ -513,7 +526,7 @@ class MainActivity : ComponentActivity() {
                     Column {
                         Text("DORAL Fleet Control", fontWeight = FontWeight.Bold)
                         Spacer(modifier = Modifier.height(4.dp))
-                        Text("Versión 2.1 FINAL", fontSize = 12.sp, color = Color.Gray)
+                        Text("Versión 2.2", fontSize = 12.sp, color = Color.Gray)
                         Spacer(modifier = Modifier.height(8.dp))
                         Text("Desarrollado para la gestión de flota de DORAL.")
                         Spacer(modifier = Modifier.height(8.dp))
